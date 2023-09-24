@@ -1,0 +1,9 @@
+black
+httpx
+mypy
+pip-tools
+python-dotenv
+ruff
+toml
+types-toml
+tqdm

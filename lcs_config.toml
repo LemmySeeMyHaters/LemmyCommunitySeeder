@@ -1,0 +1,29 @@
+# The URL of your instance
+# It is highly recommeded to run this script where your lemmy server is hosted to bypass nginx rate limit
+local_instance_url = "ip:port"
+
+# An array of remote instances you would like to pull top communities from
+# If left empty the instances will be pulled from https://raw.githubusercontent.com/maltfield/awesome-lemmy-instances/main/awesome-lemmy-instances.csv
+remote_instances = []
+
+# The number of top communities to pull from each instance. -1 Means pull everything
+community_count = -1
+
+# The sort methods you would like to search by https://join-lemmy.org/api/types/SortType.html
+community_sort_method = "Active"
+
+# Skips all the communities for the instances in the list
+skip_instances = [
+    "hexbear.net"
+]
+
+# Skips all the communities in the list. Format: !community_name@domain.tld
+skip_communities = [
+    "!games@hexbear.net"
+]
+
+# How long to sleep after adding a new community to your instance
+seconds_after_community_add = 0
+
+# To add or not to add NSFW communities
+skip_nsfw = false

@@ -13,14 +13,21 @@ community_count = -1
 community_sort_method = "Active"
 
 # Skips all the communities for the instances in the list
+# Only include domain and tld or if it contains subdomain(s)
 skip_instances = [
     "hexbear.net"
 ]
+
+# Skips the instances with monthly active user count below this number
+minimum_monthly_active_users = 2
 
 # Skips all the communities in the list. Format: !community_name@domain.tld
 skip_communities = [
     "!games@hexbear.net"
 ]
+
+# Maximum number of cocurrent connections to fetch data and subscribe
+max_workers = 2
 
 # How long to sleep after adding a new community to your instance
 seconds_after_community_add = 0

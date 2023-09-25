@@ -3,30 +3,35 @@ import math
 import re
 from csv import DictReader
 from os import getenv
-from typing import Optional, TypeVar, Awaitable, Iterator, Any
+from typing import Optional, TypeVar, Awaitable, Any, Iterable, Iterator
 
 import httpx
-import toml
 from dotenv import load_dotenv
 from tqdm import tqdm
 
+from lcs_config_loader import LCSConfig
+
 load_dotenv()
 lemmy_jwt = None
-lcs_config: dict[str, object] = {}
+lcs_config = LCSConfig.load_config()
 
 
 async def lemmy_auth() -> None:
-    global lemmy_jwt
-    """Authenticate with the Lemmy API using an aiohttp session.
+    """
+    Authenticate with the Lemmy API using httpx AsyncClient.
 
-    :param ClientSession httpx_session: The aiohttp ClientSession to use for the API request.
+    This function sends a POST request to the Lemmy API to authenticate a user using the provided
+    environment variables for the username, password, and optional TOTP 2FA token. Upon successful
+    authentication, it retrieves and stores the JWT token in the global variable `lemmy_jwt` for
+    further API interactions.
 
     :returns: None
 
     """
+    global lemmy_jwt
     auth = {"password": getenv("LEMMY_PASSWORD"), "totp_2fa_token": None, "username_or_email": getenv("LEMMY_USERNAME")}
     async with httpx.AsyncClient(headers={"accept": "application/json"}) as httpx_session:
-        resp = await httpx_session.post(f"{lcs_config['local_instance_url']}/api/v3/user/login", json=auth)
+        resp = await httpx_session.post(f"{lcs_config.local_instance_url}/api/v3/user/login", json=auth)
         data = resp.json()
         lemmy_jwt = data.get("jwt")
 
@@ -68,7 +73,7 @@ async def subscribe_to_instance_communities(remote_instance_url: str, p_bar_posi
                     ap_url = f"!{community['community']['name']}@{remote_instance_url.removeprefix('https://')}"
                     community_local_id = await get_community_local_id(ap_url, client)
 
-                    if community_local_id is None:
+                    if community_local_id is None or ap_url in lcs_config.skip_communities:
                         continue
 
                     payload = {"follow": True, "community_id": community_local_id, "auth": lemmy_jwt}
@@ -80,26 +85,91 @@ async def subscribe_to_instance_communities(remote_instance_url: str, p_bar_posi
 markdown_url_pattern = re.compile(r"\[.*?\]\((.*?)\)")
 
 
-def get_url_from_md(remote_instance: dict[str, Any]) -> Optional[str]:
-    md_url: str = remote_instance["Instance"]
+def get_url_from_md(md_url: str) -> Optional[str]:
+    """
+    Extracts a URL from a given Markdown-formatted URL string.
+
+    This function searches for a URL pattern within the input string `md_url` using a regular expression.
+    If a match is found, it returns the first captured group of the matches, which is assumed to be the URL.
+    If no match is found, it returns `None`.
+
+    :param md_url: A string containing a Markdown-formatted URL.
+    :type md_url: str
+
+    :return: The extracted URL or `None` if no URL is found.
+    :rtype: Optional[str]
+    """
+
     result = markdown_url_pattern.search(md_url)
     return result.group(1) if result is not None else None
 
 
-async def subscribe_instances() -> None:
-    async with httpx.AsyncClient() as session:
-        resp = await session.get("https://raw.githubusercontent.com/maltfield/awesome-lemmy-instances/main/awesome-lemmy-instances.csv")
-        remote_instances = DictReader(resp.text.splitlines())
+async def fetch_instance_urls() -> Iterator[str]:
+    """
+    Asynchronously fetches a list of Lemmy instance URLs from a remote server.
 
+    Additionally, it checks if each instance meets the minimum user threshold
+    specified in `lcs_config.minimum_user_threshold` and if it's included in the
+    list of instances to skip (`lcs_config.skip_instances`).
+
+    If `lcs_config.remote_instances` is provided, the minimum user threshold check
+    and skip instances check are not performed.
+
+    :return: An iterator of Lemmy instance URLs that meet the minimum user threshold
+             and are not in the list of skipped instances.
+    :rtype: Iterator[str]
+
+    """
+    if lcs_config.remote_instances:
+        remote_instances = (instance_url for instance_url in lcs_config.remote_instances)
+    else:
+        async with httpx.AsyncClient() as session:
+            resp = await session.get("https://raw.githubusercontent.com/maltfield/awesome-lemmy-instances/main/awesome-lemmy-instances.csv")
+            remote_instances_dict = DictReader(resp.text.splitlines())
+            remote_instances = (
+                x["Instance"]
+                for x in remote_instances_dict
+                if int(x["Users"]) >= lcs_config.minimum_monthly_active_users or x["Instance"] in lcs_config.skip_instances
+            )
+    return remote_instances
+
+
+async def subscribe_instances() -> None:
+    """
+    Asynchronously subscribes to communities in Lemmy instances that meet the criteria.
+
+    """
+    remote_instances = await fetch_instance_urls()
     instance_urls = filter(None, map(get_url_from_md, remote_instances))
-    coroutine_pool = (subscribe_to_instance_communities(instance_url, idx) for idx, instance_url in enumerate(instance_urls))
-    await limited_task_pool(max_concurrency=2, coroutines=coroutine_pool)
+    coroutine_pool = []
+    for idx, instance_url in enumerate(instance_urls):
+        if instance_url not in lcs_config.skip_instances:
+            continue
+        coroutine_pool.append(subscribe_to_instance_communities(instance_url, idx))
+
+    await limited_task_pool(max_concurrency=lcs_config.max_workers, coroutines=coroutine_pool)
 
 
 T = TypeVar("T")
 
 
-async def limited_task_pool(max_concurrency: int, coroutines: Iterator[Awaitable[T]]) -> None:
+async def limited_task_pool(max_concurrency: int, coroutines: Iterable[Awaitable[T]]) -> None:
+    """
+    Execute a pool of asynchronous coroutines with a limited concurrency level.
+
+    This function creates a pool of worker coroutines, where each worker executes the provided
+    asynchronous coroutine.
+
+    It limits the concurrency to a specified `max_concurrency` level by using a semaphore.
+
+    :param max_concurrency: The maximum number of coroutines allowed running concurrently.
+    :type max_concurrency: int
+
+    :param coroutines: An iterable of asynchronous coroutines to be executed.
+    :type coroutines: Iterable[Awaitable[T]]
+
+    :returns: None
+    """
     semaphore = asyncio.Semaphore(max_concurrency)
 
     async def worker(coroutine: Awaitable[T]) -> None:
@@ -111,11 +181,6 @@ async def limited_task_pool(max_concurrency: int, coroutines: Iterator[Awaitable
 
 
 async def main() -> None:
-    global lcs_config
-
-    with open("lcs_config.toml", "r") as fp:
-        lcs_config = toml.load(fp)
-
     await lemmy_auth()
     await subscribe_instances()
 

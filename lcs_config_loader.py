@@ -53,10 +53,10 @@ class LCSConfig:
             community_count=config_dict.get("community_count", -1),
             community_sort_method=SortType(config_dict.get("community_sort_method", "Active")),
             skip_instances=config_dict.get("skip_instances", []),
-            minimum_monthly_active_users=config_dict.get("minimum_monthly_active_users", 100),
+            minimum_monthly_active_users=config_dict.get("minimum_monthly_active_users", 10),
             skip_communities=config_dict.get("skip_communities", []),
-            max_workers=config_dict.get("max_workers", 1),
-            seconds_after_community_add=config_dict.get("seconds_after_community_add", 0),
+            max_workers=config_dict.get("max_workers", 2),
+            seconds_after_community_add=config_dict.get("seconds_after_community_add", 5),
             skip_nsfw=config_dict.get("skip_nsfw", False),
         )
         return lcs_config

@@ -7,7 +7,7 @@ local_instance_url = "ip:port"
 remote_instances = []
 
 # The number of top communities to pull from each instance. -1 Means pull everything
-community_count = -1
+community_count = 50
 
 # The sort methods you would like to search by https://join-lemmy.org/api/types/SortType.html
 community_sort_method = "Active"
@@ -19,7 +19,7 @@ skip_instances = [
 ]
 
 # Skips the instances with monthly active user count below this number
-minimum_monthly_active_users = 2
+minimum_monthly_active_users = 10
 
 # Skips all the communities in the list. Format: !community_name@domain.tld
 skip_communities = [
@@ -30,7 +30,7 @@ skip_communities = [
 max_workers = 2
 
 # How long to sleep after adding a new community to your instance
-seconds_after_community_add = 0
+seconds_after_community_add = 5
 
 # To add or not to add NSFW communities
 skip_nsfw = false

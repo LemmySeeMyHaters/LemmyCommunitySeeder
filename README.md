@@ -35,6 +35,7 @@ The goal of this bot can help you boost your instance content so users will have
    ```
 
 4. Create `.env` file:
+
    Create `.env` file which will contain your Lemmy Credentials.
    The file should look like this.
    The credentials from here will be used to run the bot.
@@ -44,10 +45,12 @@ The goal of this bot can help you boost your instance content so users will have
    ```
 
 5. Configure the `lcs_config.toml`:
+
    Configure the `lcs_config.toml` to your liking and make sure to edit the `local_instance_url`.
    All configs in `lcs_config.toml` are commented which explain what each config does.
 
 6. Run the bot:
+
    Run the bot my running the main.
    ```shell
    python3 main.py

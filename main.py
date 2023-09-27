@@ -44,7 +44,7 @@ async def get_instance_metadata(instance_url: str, httpx_client: httpx.AsyncClie
 async def get_community_local_id(ap_url: str, httpx_client: httpx.AsyncClient) -> Optional[int]:
     params = {"auth": lemmy_jwt, "q": ap_url}
     for _ in range(3):
-        resp = await httpx_client.get(f"{lcs_config.local_instance_url}/api/v3/resolve_object", params=params)
+        resp = await httpx_client.get(f"{lcs_config.local_instance_url}/api/v3/resolve_object", params=params, timeout=None)
         if resp.status_code == 200:
             json_data = resp.json()
             community_id: int = json_data["community"]["community"]["id"]
@@ -80,6 +80,7 @@ async def subscribe_to_instance_communities(remote_instance_url: str, p_bar_posi
                     resp = await client.post(f"{lcs_config.local_instance_url}/api/v3/community/follow", json=payload)
                     if resp.status_code == 200:
                         pagination_pbar.set_description(f"{pbar_desc} - Subscribed to {resp.json()['community_view']['community']['name']}")
+                    await asyncio.sleep(lcs_config.seconds_after_community_add)
 
 
 markdown_url_pattern = re.compile(r"\[.*?\]\((.*?)\)")

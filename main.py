@@ -74,6 +74,7 @@ async def subscribe_to_instance_communities(remote_instance_url: str, p_bar_posi
                     community_local_id = await get_community_local_id(ap_url, client)
 
                     if community_local_id is None or ap_url in lcs_config.skip_communities:
+                        pagination_pbar.set_description(f"{pbar_desc} - Skipping {ap_url}")
                         continue
 
                     payload = {"follow": True, "community_id": community_local_id, "auth": lemmy_jwt}

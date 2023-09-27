@@ -53,7 +53,7 @@ async def get_community_local_id(ap_url: str, httpx_client: httpx.AsyncClient) -
 
 
 async def subscribe_to_instance_communities(remote_instance_url: str, p_bar_position: int) -> None:
-    async with httpx.AsyncClient(headers={"accept": "application/json"}) as client:
+    async with httpx.AsyncClient(headers={"accept": "application/json"}, timeout=120.0) as client:
         instance_meta_data = await get_instance_metadata(remote_instance_url, client)
         if instance_meta_data is None:
             return None

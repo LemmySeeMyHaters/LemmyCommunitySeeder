@@ -3,7 +3,7 @@ import math
 import re
 from csv import DictReader
 from os import getenv
-from typing import Optional, TypeVar, Awaitable, Any, Iterable, Iterator
+from typing import Optional, TypeVar, Awaitable, Any, Iterable, AsyncIterator
 
 import httpx
 from dotenv import load_dotenv
@@ -85,7 +85,7 @@ async def subscribe_to_instance_communities(remote_instance_url: str, p_bar_posi
 markdown_url_pattern = re.compile(r"\[.*?\]\((.*?)\)")
 
 
-def get_url_from_md(md_url: str) -> Optional[str]:
+def get_url_from_md(remote_instances_dict: dict[str, str]) -> Optional[str]:
     """
     Extracts a URL from a given Markdown-formatted URL string.
 
@@ -93,18 +93,18 @@ def get_url_from_md(md_url: str) -> Optional[str]:
     If a match is found, it returns the first captured group of the matches, which is assumed to be the URL.
     If no match is found, it returns `None`.
 
-    :param md_url: A string containing a Markdown-formatted URL.
-    :type md_url: str
+    :param remote_instances_dict: A dict containing instance metadata.
+    :type remote_instances_dict: dict[str, str]
 
     :return: The extracted URL or `None` if no URL is found.
     :rtype: Optional[str]
     """
 
-    result = markdown_url_pattern.search(md_url)
+    result = markdown_url_pattern.search(remote_instances_dict["Instance"])
     return result.group(1) if result is not None else None
 
 
-async def fetch_instance_urls() -> Iterator[str]:
+async def fetch_instance_urls() -> AsyncIterator[str]:
     """
     Asynchronously fetches a list of Lemmy instance URLs from a remote server.
 
@@ -115,23 +115,23 @@ async def fetch_instance_urls() -> Iterator[str]:
     If `lcs_config.remote_instances` is provided, the minimum user threshold check
     and skip instances check are not performed.
 
-    :return: An iterator of Lemmy instance URLs that meet the minimum user threshold
+    :return: An Async iterator of Lemmy instance URLs that meet the minimum user threshold
              and are not in the list of skipped instances.
-    :rtype: Iterator[str]
+    :rtype: AsyncIterator[str]
 
     """
     if lcs_config.remote_instances:
-        remote_instances = (instance_url for instance_url in lcs_config.remote_instances)
+        for instance_url in lcs_config.remote_instances:
+            yield instance_url
     else:
         async with httpx.AsyncClient() as session:
             resp = await session.get("https://raw.githubusercontent.com/maltfield/awesome-lemmy-instances/main/awesome-lemmy-instances.csv")
-            remote_instances_dict = DictReader(resp.text.splitlines())
-            remote_instances = (
-                x["Instance"]
-                for x in remote_instances_dict
-                if int(x["Users"]) >= lcs_config.minimum_monthly_active_users or x["Instance"] in lcs_config.skip_instances
-            )
-    return remote_instances
+            remote_instances_dicts = DictReader(resp.text.splitlines())
+            for remote_instance_dict in remote_instances_dicts:
+                raw_url = get_url_from_md(remote_instance_dict)
+                if raw_url is None or int(remote_instance_dict["Users"]) < lcs_config.minimum_monthly_active_users or raw_url in lcs_config.skip_instances:
+                    continue
+                yield raw_url
 
 
 async def subscribe_instances() -> None:
@@ -139,14 +139,12 @@ async def subscribe_instances() -> None:
     Asynchronously subscribes to communities in Lemmy instances that meet the criteria.
 
     """
-    remote_instances = await fetch_instance_urls()
-    instance_urls = filter(None, map(get_url_from_md, remote_instances))
+    remote_instances = fetch_instance_urls()
     coroutine_pool = []
-    for idx, instance_url in enumerate(instance_urls):
-        if instance_url not in lcs_config.skip_instances:
-            continue
+    idx = 0
+    async for instance_url in remote_instances:
         coroutine_pool.append(subscribe_to_instance_communities(instance_url, idx))
-
+        idx += 1
     await limited_task_pool(max_concurrency=lcs_config.max_workers, coroutines=coroutine_pool)
 
 

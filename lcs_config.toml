@@ -13,9 +13,9 @@ community_count = 50
 community_sort_method = "Active"
 
 # Skips all the communities for the instances in the list
-# Only include domain and tld or if it contains subdomain(s)
+# Include the full url including the protocol
 skip_instances = [
-    "hexbear.net"
+    "https://hexbear.net"
 ]
 
 # Skips the instances with monthly active user count below this number

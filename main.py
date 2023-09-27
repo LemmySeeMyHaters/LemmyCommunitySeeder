@@ -63,7 +63,7 @@ async def subscribe_to_instance_communities(remote_instance_url: str, p_bar_posi
         total_pages = math.ceil(community_count / 50)
 
         pbar_desc = f"{remote_instance_url}"
-        with tqdm(range(1, total_pages), desc=pbar_desc, position=p_bar_position) as pagination_pbar:
+        with tqdm(range(1, total_pages), desc=pbar_desc, position=p_bar_position, total=community_count) as pagination_pbar:
             for pg_idx in pagination_pbar:
                 params = params.set("page", pg_idx)
                 resp = await client.get(f"{remote_instance_url}/api/v3/community/list", params=params)
@@ -75,12 +75,14 @@ async def subscribe_to_instance_communities(remote_instance_url: str, p_bar_posi
 
                     if community_local_id is None or ap_url in lcs_config.skip_communities:
                         pagination_pbar.set_description(f"{pbar_desc} - Skipping {ap_url}")
+                        pagination_pbar.update(1)
                         continue
 
                     payload = {"follow": True, "community_id": community_local_id, "auth": lemmy_jwt}
                     resp = await client.post(f"{lcs_config.local_instance_url}/api/v3/community/follow", json=payload)
                     if resp.status_code == 200:
                         pagination_pbar.set_description(f"{pbar_desc} - Subscribed to {resp.json()['community_view']['community']['name']}")
+                    pagination_pbar.update(1)
                     await asyncio.sleep(lcs_config.seconds_after_community_add)
 
 
